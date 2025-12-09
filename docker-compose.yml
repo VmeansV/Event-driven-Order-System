@@ -1,0 +1,118 @@
+services:
+  # База данных PostgreSQL для всех сервисов
+  db:
+    image: postgres:13-alpine
+    container_name: postgres_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=event_db
+    ports:
+      - "5432:5432"
+
+  # Kafka & Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.0.1
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.0.1
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+  # Сервис для создания топиков в Kafka
+  kafka-init:
+    image: confluentinc/cp-kafka:7.0.1
+    depends_on:
+      - kafka
+    entrypoint: [ '/bin/sh', '-c' ]
+    command: |
+      "
+      # blocks until kafka is reachable
+      kafka-topics --bootstrap-server kafka:9092 --list
+      
+      echo -e 'Creating kafka topics...'
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic orders --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic payments --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic shipments --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic cancels --partitions 1 --replication-factor 1
+      
+      echo -e 'Successfully created topics'
+      "
+
+  # 1. Order Service
+  order_service:
+    build: ./order_service
+    container_name: order_service
+    command: /app/entrypoint.sh
+    #volumes:
+      #- ./order_service:/app
+    ports:
+      - "8001:8000"
+    environment:
+      - DB_NAME=event_db
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_HOST=db
+      - DB_PORT=5432
+      - KAFKA_BROKER=kafka:9092
+    depends_on:
+      - db
+      - kafka
+
+  # 2. Payment Service
+  payment_service:
+    build: ./payment_service
+    container_name: payment_service
+    command: /app/entrypoint.sh
+    volumes:
+      - ./payment_service:/app
+    ports:
+      - "8002:8000" # Для опционального GET /payments
+    environment:
+      - DB_NAME=event_db
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_HOST=db
+      - DB_PORT=5432
+      - KAFKA_BROKER=kafka:9092
+    depends_on:
+      - db
+      - kafka
+
+  # 3. Shipping Service
+  shipping_service:
+    build: ./shipping_service
+    container_name: shipping_service
+    command: /app/entrypoint.sh
+    volumes:
+      - ./shipping_service:/app
+    environment:
+      - DB_NAME=event_db
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_HOST=db
+      - DB_PORT=5432
+      - KAFKA_BROKER=kafka:9092
+    depends_on:
+      - db
+      - kafka
+
+volumes:
+  postgres_data:

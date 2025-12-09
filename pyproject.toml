@@ -1,0 +1,17 @@
+[tool.ruff]
+# Указываем максимальную длину строки
+line-length = 88
+# Указываем целевую версию Python
+target-version = "py39"
+
+[tool.ruff.lint]
+# Выбираем правила для проверки. 'E' и 'F' - это стандартные правила flake8 (ошибки и логические проблемы).
+select = ["E", "I", "F"]
+# Можно добавить больше правил, например, для isort: select = ["E", "F", "I"]
+
+[tool.ruff.format]
+# Настройки для форматера, совместимые с Black
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"
