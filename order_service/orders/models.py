@@ -30,3 +30,20 @@ class OrderInbox(models.Model):
 
     class Meta:
         db_table = "order_service_inbox"
+
+
+class OrderOutbox(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    event_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    payload = models.JSONField()
+    topic = models.CharField(max_length=100)
+    headers = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    class Meta:
+        db_table = "order_service_outbox"
+
+    def __str__(self):
+        status = "Processed" if self.processed_at else "Pending"
+        return f"Event {self.event_id} for topic '{self.topic}' ({status})"
