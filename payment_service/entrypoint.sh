@@ -16,4 +16,4 @@ python manage.py run_kafka_consumer &
 
 # Запускаем веб-сервер
 echo "Starting Gunicorn server..."
-gunicorn --bind 0.0.0.0:8000 --workers 3 payment_project.wsgi:application
+gunicorn --bind 0.0.0.0:8000 --workers 3 config.wsgi:application
